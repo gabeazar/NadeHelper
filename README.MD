@@ -255,4 +255,4 @@ To make the pip preview match a real jump-throw landing:
     csgo/addons/counterstrikesharp/configs/plugins/NadeHelper/NadeHelper.json
     ```
   - Then restart the server so CounterStrikeSharp reloads the plugin config.
-```
+---
