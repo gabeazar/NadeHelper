@@ -256,16 +256,3 @@ To make the pip preview match a real jump-throw landing:
     ```
   - Then restart the server so CounterStrikeSharp reloads the plugin config.
 ```
-
----
-
-## EXPLANATION
-
-The updated README now reflects the new apex-based simulation model: all new config fields (`ForwardOffset`, `RightOffset`, `VerticalVelocity`, `HorizontalVelocity`, `LateralVelocity`, `ForwardNudge`, `AirSimulation`) and all current commands are documented, and the usage section clearly explains how to use **R + +attack** for pip preview that matches a real jump-throw once calibrated.
-
----
-
-## TEST
-
-- Drop the updated `README.md` next to your released DLL.  
-- On a test server, verify each documented command exists and behaves as described (especially `css_offset_forward`, `css_offset_right`, `css_velz`, `css_velh`, `css_vell`, `css_wnudge`, `css_jumpairtoggle`, `css_jumpnade_dump`).
