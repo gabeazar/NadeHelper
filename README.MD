@@ -1,4 +1,3 @@
-```markdown
 # NadeHelper (CounterStrikeSharp Plugin)
 
 NadeHelper is a CounterStrikeSharp plugin for **CS2** that lets you:
@@ -290,3 +289,4 @@ Because NadeHelper is already using your server’s real `sv_gravity` and `sv_ju
   - Then restart the server so CounterStrikeSharp reloads the plugin config.
 ---
 ```
+
