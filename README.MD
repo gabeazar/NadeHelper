@@ -288,5 +288,5 @@ Because NadeHelper is already using your server’s real `sv_gravity` and `sv_ju
     ```
   - Then restart the server so CounterStrikeSharp reloads the plugin config.
 ---
-```
+
 
