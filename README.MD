@@ -1,43 +1,46 @@
+```markdown
 # NadeHelper (CounterStrikeSharp Plugin)
 
 NadeHelper is a CounterStrikeSharp plugin for **CS2** that lets you:
 
 - Preview **jump-throw** and **W-jump** grenade lineups in practice servers using the grenade pip.
-- Simulate the player at the **exact jump apex** (position + velocity) for consistent preview.
-- Tune apex offsets and velocities live via commands to match real jump-throws.
-- Handle unintentional grenade throws during preview by restoring the grenade.
+- Simulate the player at a physically correct **jump apex** (position + velocity) using real `sv_gravity` and `sv_jump_impulse`.
+- Tune apex offsets and velocities live via commands to match the exact “grunt” jump-throw release moment.
+- Keep all server movement and gravity cvars untouched (no `sv_gravity` hacks).
 
 Author: `gabeazar`  
 Plugin name: `NadeHelper`  
-Version: `0.9`
+Version: `0.10`
 
 ---
 
 ## Features
 
-- **Hold-Reload Apex Simulation**  
-  While on the ground with a grenade equipped, holding **Reload (R)** latches your state and teleports you to a **synthetic jump apex** every tick:
-  - Position offset: configurable forward/right/up offsets relative to where you latched.
-  - Velocity: configurable forward/side/vertical velocity matching a real jump-throw.
-  - Optional “air simulation”: forces off-ground flag for a mid-air look.
-  The grenade pip (e.g. `sv_grenade_trajectory_prac_pipreview 1`) then shows the trajectory as if you released the grenade at that apex.
+- **Hold-Reload Physics-Based Apex Simulation**  
+  While on the ground with a grenade equipped, holding **Reload (R)** latches your state and teleports you to a **physics-derived jump apex** every tick:
+  - Apex height is computed from **real** `sv_gravity` and `sv_jump_impulse`.
+  - Horizontal displacement comes from your **actual movement speed** at latch time.
+  - Position offsets: configurable forward/right/up offsets on top of the computed apex.
+  - Velocity offsets: configurable forward/side/vertical velocity tweaks on top of the computed apex velocity.
+  - Optional “air simulation”: forces off-ground flag for a mid-air look.  
+  The grenade pip (e.g. `sv_grenade_trajectory_prac_pipreview 1`) then shows the trajectory as if you released the grenade at that jump-throw apex.
+
+- **No Gravity / Movement Cvar Changes**  
+  NadeHelper **never modifies** `sv_gravity`, `sv_jump_impulse`, or any movement cvars. It only reads them to compute a physically correct jump, and then uses teleports to simulate the release state.
 
 - **Debounced R Release**  
-  To avoid flicker or packet-loss issues, R must be released for **3 consecutive ticks** before the preview unlatches. Brief input gaps won’t drop you out of preview.
+  To avoid flicker or packet-loss issues, R must be released for **3 consecutive ticks** before the preview unlatches. Brief input gaps won’t drop you out of preview and cause jitter.
 
 - **W-Based Micro Nudge Only While Latched**  
-  While latched and holding **R**, pressing **W** applies a small configurable forward nudge to your apex position. Releasing W (while still holding R) removes the nudge. Movement keys have **no effect** when not latched.
+  While latched and holding **R**, pressing **W** applies a small configurable forward nudge to your apex position and an optional extra forward velocity. Releasing W (while still holding R) removes the nudge. Movement keys have **no effect** when not latched.
 
 - **Apex Position & Velocity Tuning**  
   Live-adjust:
-  - Apex height (`JumpHeightOffset`)
-  - Forward/right offset (`ForwardOffset`, `RightOffset`)
-  - Apex velocity (`VerticalVelocity`, `HorizontalVelocity`, `LateralVelocity`)
-  - Forward nudge distance (`ForwardNudge`)
-  so that the pip preview matches your real jump-throw landings.
-
-- **Unintentional Throw Handling**  
-  If you accidentally throw your grenade during preview (for example while adjusting), the plugin **gives you the same grenade back** on the next frame and notifies you in chat.
+  - Extra apex height (`JumpHeightOffset`)
+  - Extra forward/right offset (`ForwardOffset`, `RightOffset`)
+  - Extra apex velocity tweaks (`VerticalVelocity`, `HorizontalVelocity`, `LateralVelocity`)
+  - Forward nudge distance and velocity (`ForwardNudge`, `ForwardNudgeVelocity`)  
+  so that the pip preview matches where a real jump-throw (the “grunt” release) would land on your server.
 
 - **Dump Command for Calibration**  
   Quickly print your current position and velocity to chat to help calibrate offsets and velocities.
@@ -99,43 +102,54 @@ Version: `0.9`
 
 ```jsonc
 {
-  "Version": 3,
-  "JumpHeightOffset": 56.0,
-  "ForwardOffset": 90.0,
+  "Version": 2,
+  "JumpHeightOffset": 0.0,
+  "ForwardOffset": 0.0,
   "RightOffset": 0.0,
   "VerticalVelocity": 0.0,
-  "HorizontalVelocity": 250.0,
+  "HorizontalVelocity": 0.0,
   "LateralVelocity": 0.0,
   "ForwardNudge": 3.0,
+  "ForwardNudgeVelocity": 29.99,
   "AirSimulation": true
 }
 ```
 
 **Options:**
 
-- `JumpHeightOffset` (float, default: `56.0`)  
-  Height (Z) offset in units from your current ground position to the synthetic **jump apex**.
+- `JumpHeightOffset` (float, default: `0.0`)  
+  Extra height (Z, units) **added on top of the physics-computed jump apex**.  
+  By default, the plugin uses the real apex from `sv_gravity` and `sv_jump_impulse`. Adjust this slightly if your perfect jump-throw release is a bit before/after the true apex.
 
-- `ForwardOffset` (float, default: `90.0`)  
-  Forward offset (along your view direction) from latch position to apex. Adjust to match how far forward you’ve moved when you release the grenade in a real jump-throw.
+- `ForwardOffset` (float, default: `0.0`)  
+  Extra forward offset (along your view direction) **added on top of the predicted horizontal apex position**.  
+  The base prediction already uses your current ground velocity; use this for small corrections.
 
 - `RightOffset` (float, default: `0.0`)  
-  Side offset (to the right of your view) from latch position to apex. Use for lineups that include A/D strafing.
+  Extra side offset (to the right of your view) from the predicted apex. Useful for lineups involving small strafes that the simple prediction doesn’t fully capture.
 
 - `VerticalVelocity` (float, default: `0.0`)  
-  Vertical velocity at apex (units/sec). `0.0` ≈ exact apex; positive = slightly before apex, negative = slightly after.
+  Extra vertical velocity at the release moment (units/sec).  
+  The physics apex itself is `0` vertical velocity; positive values simulate slightly **before** the apex, negative values simulate slightly **after**.
 
-- `HorizontalVelocity` (float, default: `250.0`)  
-  Forward velocity at apex (units/sec). Around `250` is full run speed; reduce for walk/slow throws.
+- `HorizontalVelocity` (float, default: `0.0`)  
+  Extra forward (view-direction) velocity at release (units/sec).  
+  The plugin already uses your real ground horizontal speed; use this to fine-tune jump-throws that feel slightly faster/slower than the simple model.
 
 - `LateralVelocity` (float, default: `0.0`)  
-  Sideways velocity at apex (units/sec). Use for jump-throws where you are still moving left/right.
+  Extra sideways velocity at release (units/sec).  
+  Use this for jump-throws where you are still moving slightly left/right at the release moment.
 
 - `ForwardNudge` (float, default: `3.0`)  
-  Extra forward distance (units) applied when you hold **R + W** while latched. Acts as a micro-adjustment tool in preview.
+  Extra forward distance (units) applied when you hold **R + W** while latched. Acts as a micro-adjustment tool in preview to simulate very small changes in jump distance.
+
+- `ForwardNudgeVelocity` (float, default: `29.99`)  
+  Additional forward velocity (units/sec) applied when you hold **R + W** while latched.  
+  This is a small velocity “boost” on top of your computed horizontal speed, useful to approximate W-jumps.
 
 - `AirSimulation` (bool, default: `true`)  
-  When `true`, the plugin clears the ground flag each tick while latched so you appear mid-air; the position/velocity are still fully controlled via teleport and the values above.
+  When `true`, the plugin clears the ground flag each tick while latched so you appear mid-air; position/velocity are still fully controlled via teleport and the values above.  
+  When `false`, the engine may try to snap you to the ground, which can look odd depending on map geometry.
 
 ---
 
@@ -146,31 +160,34 @@ Version: `0.9`
 Use these commands in the **server console** or in your own console (with appropriate permissions) to tune NadeHelper while in-game:
 
 - `css_jumpoffset <value>`  
-  Set apex height above your current ground position (e.g. `css_jumpoffset 56`).
+  Set extra apex height added to the computed jump apex (e.g. `css_jumpoffset 4`).
 
 - `css_offset_forward <value>`  
-  Set forward apex offset (units along your current view, e.g. `css_offset_forward 90`).
+  Set extra forward apex offset (units along your current view, e.g. `css_offset_forward 4`).
 
 - `css_offset_right <value>`  
-  Set right apex offset (units to your view’s right, e.g. `css_offset_right 0`).
+  Set extra right apex offset (units to your view’s right, e.g. `css_offset_right 1`).
 
 - `css_velz <value>`  
-  Set vertical velocity at apex (e.g. `css_velz 0` for exact apex, slightly >0 or <0 to bias before/after).
+  Set extra vertical velocity at release (e.g. `css_velz 0` for true apex, slightly >0 or <0 to bias earlier/later).
 
 - `css_velh <value>`  
-  Set forward (view-direction) velocity at apex (e.g. `css_velh 250` for full run speed).
+  Set extra forward (view-direction) velocity at release (e.g. `css_velh 10` for a small extra push).
 
 - `css_vell <value>`  
-  Set lateral (sideways) velocity at apex (e.g. `css_vell 0` unless you strafe).
+  Set extra lateral (sideways) velocity at release.
 
 - `css_wnudge <value>`  
   Set forward nudge distance applied while **R + W** are held during preview (e.g. `css_wnudge 3`).
+
+- `css_wnudge_vel <value>`  
+  Set additional forward velocity applied while **R + W** are held during preview (e.g. `css_wnudge_vel 30`).
 
 - `css_jumpairtoggle`  
   Toggle “air simulation” on/off (controls whether the plugin forces you off-ground visually while latched).
 
 - `css_jumpnade_dump`  
-  Print your current position and velocity to chat (useful for measuring real jump apex velocities to copy into config).
+  Print your current position and velocity to chat (useful for understanding your real movement/jump behavior for calibration).
 
 ---
 
@@ -180,51 +197,66 @@ Use these commands in the **server console** or in your own console (with approp
    Use any grenade: HE, Flash, Smoke, Molotov, Incendiary, Decoy.
 
 2. **Latch into preview**  
-   - Stand on the ground.  
+   - Stand on the ground at your lineup spot.  
+   - Aim where you want the grenade to go.  
    - Hold **Reload (R)** with the grenade out.  
-   - The plugin latches your state and starts teleporting you every tick to the configured **apex position** with the configured **apex velocity**.
+   - The plugin:
+     - Reads `sv_gravity` and `sv_jump_impulse` (without changing them).
+     - Computes the **time to jump apex** and the **apex height** based on real physics.
+     - Uses your current horizontal velocity to predict where you would be at that apex.
+     - Applies any configured offsets (height/forward/right + velocity tweaks).
+     - Teleports you into that apex state and starts re-teleporting you every tick while R is held.
 
 3. **Use the pip preview**  
    - While still holding **R**, press and hold **+attack (Mouse1)**.  
-   - With `sv_grenade_trajectory_prac_pipreview 1`, the pip now shows the grenade arc **as if you released it at that synthetic apex**.  
-   - Rotate your view to test different lineups; the plugin keeps your position/velocity constant so the pip is stable.
+   - With `sv_grenade_trajectory_prac_pipreview 1`, the pip now shows the grenade arc **as if you released it at that physics-based jump apex**.  
+   - Rotate your view to test different lineups; the plugin keeps your position/velocity constant so the pip is stable and repeatable.
 
 4. **Micro-adjust forward with W (optional)**  
-   - While latched and holding **R**, press **W** to apply a small forward nudge (`ForwardNudge`) to your apex position.  
-   - Release **W** (while still holding R) to remove the nudge and go back to the base apex.  
-   - Movement keys do **nothing** when not latched; this only affects the preview state.
+   - While latched and holding **R**, press **W** to apply:
+     - A small forward position nudge (`ForwardNudge`).
+     - A small additional forward velocity (`ForwardNudgeVelocity`).  
+   - Release **W** (while still holding R) to remove the nudge and go back to the base apex state.  
+   - This helps you simulate subtle W-jump differences without actually jumping.
 
 5. **Release preview**  
-   - Release **R**; once R has been **unpressed for ~3 ticks**, the preview unlatches and teleporting stops.  
-   - You remain where you were at the last teleported apex position, and normal movement resumes.
-
-6. **Unintentional throws**  
-   - If you accidentally throw a grenade while latched (e.g. you click instead of just pip-previewing), the thrown grenade still exists, but the plugin **gives you an identical grenade back** on the next frame and informs you in chat.
+   - Release **R**; once R has been **unpressed for ~3 ticks**, the preview unlatches and teleporting stops (debounced to avoid jitter).  
+   - You then fall and move normally again under the server’s real gravity and movement settings.
 
 ---
 
 ## Calibration Tips
 
-To make the pip preview match a real jump-throw landing:
+Because NadeHelper is already using your server’s real `sv_gravity` and `sv_jump_impulse`, you mostly need to **fine-tune** offsets to align with the exact moment you normally release (the “grunt” jump-throw):
 
 1. **Record a real jump-throw**  
-   - Do a real jump-throw with your usual timing on a specific lineup.  
+   - On a specific lineup, do a real jump-throw with your usual timing.  
    - Note the landing spot.
 
-2. **Measure real apex state (optional)**  
-   - Use `css_jumpnade_dump` at various points in your jump to see real velocities and height.  
-   - Approximate the values at the moment you actually release the grenade.
-
-3. **Configure NadeHelper to match**  
-   - Start with defaults:
-     - `JumpHeightOffset 56`
-     - `ForwardOffset 90`
-     - `HorizontalVelocity 250`
+2. **Use the default physics-based preview**  
+   - Ensure your config offsets are near default:
+     - `JumpHeightOffset 0`
+     - `ForwardOffset 0`
+     - `RightOffset 0`
      - `VerticalVelocity 0`
-   - Adjust `ForwardOffset`, `JumpHeightOffset`, and velocities (`css_velh`, `css_velz`, `css_vell`) until:
-     - The pip trajectory when holding **R + Mouse1** lands in the same spot as your real jump-throw.
+     - `HorizontalVelocity 0`
+     - `LateralVelocity 0`  
+   - Hold **R + Mouse1** and compare the pip landing to your real jump-throw.
 
-4. **Save your config**  
+3. **Apply small corrections**  
+   - If the pip lands **short/long**, adjust:
+     - Position: `css_offset_forward`, `css_jumpoffset`.
+     - Velocity: small tweaks via `css_velh`, `css_velz`.  
+   - If it lands **left/right off**, adjust:
+     - `css_offset_right` and possibly `css_vell`.  
+   - Iterate until the pip preview’s landing matches your real throw.
+
+4. **Simulate W-jumps**  
+   - For W-jump specific lineups, tune:
+     - `ForwardNudge` and `ForwardNudgeVelocity` (via `css_wnudge` / `css_wnudge_vel`).  
+   - These only apply while you hold **R + W**, so you can quickly compare normal jump-throws vs W-jumps.
+
+5. **Save your config**  
    - Once you’re happy, copy your tuned values into the JSON config so they persist across restarts.
 
 ---
@@ -238,16 +270,17 @@ To make the pip preview match a real jump-throw landing:
     - The plugin is loaded: `css_plugins list`.
 
 - **Pip trajectory doesn’t match real jump-throw**  
-  - Adjust:
-    - Position: `css_jumpoffset`, `css_offset_forward`, `css_offset_right`.
-    - Velocity: `css_velh`, `css_velz`, `css_vell`.
+  - Remember the plugin uses **real** `sv_gravity` and `sv_jump_impulse` and your current movement speed.  
+  - Use:
+    - Position tweaks: `css_jumpoffset`, `css_offset_forward`, `css_offset_right`.  
+    - Velocity tweaks: `css_velh`, `css_velz`, `css_vell`.  
   - Compare landing spots between real jump-throws and R+pip preview and iterate.
 
 - **Preview drops out too easily**  
-  - Remember there is a **3-tick debounce**: if R is flickering due to key or network issues, you should still stay latched. If you’re still dropping unexpectedly, verify no other plugin is manipulating input/buttons.
-
-- **Unintentional throws not restored**  
-  - Ensure you threw the grenade **while latched** (holding R). Throws outside preview are not touched.
+  - There is a **3-tick debounce** on R release.  
+  - If you still drop unexpectedly, verify:
+    - No other plugin is manipulating input/buttons.
+    - Your keybind is correctly bound to `+reload`.
 
 - **Config not applying**  
   - Edit the JSON file at:
@@ -256,3 +289,4 @@ To make the pip preview match a real jump-throw landing:
     ```
   - Then restart the server so CounterStrikeSharp reloads the plugin config.
 ---
+```
